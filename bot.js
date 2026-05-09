@@ -997,15 +997,20 @@ async function start() {
 
     console.log("✅ MongoDB Connected");
 
-    console.log("🔍 Checking Telegram bot...");
+    console.log("🧹 Removing old webhook...");
+
+    await bot.telegram.deleteWebhook();
+
+    console.log("✅ Webhook removed");
 
     const me = await bot.telegram.getMe();
 
-    console.log("✅ Telegram Connected");
+    console.log(`🤖 Bot Found : @${me.username}`);
 
-    await bot.launch();
+    await bot.launch({
+      dropPendingUpdates: true,
+    });
 
-    console.log(`🤖 Bot Active : @${me.username}`);
     console.log("🚀 SLA Tracker Running");
   } catch (error) {
     console.error("❌ Startup Error:");
