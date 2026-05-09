@@ -1,4 +1,5 @@
 require("dotenv").config();
+
 const { Telegraf, Markup } = require("telegraf");
 const mongoose = require("mongoose");
 const axios = require("axios");
@@ -8,10 +9,12 @@ const axios = require("axios");
 // ======================================================
 
 const BOT_TOKEN =
-  process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN;
+  process.env.TELEGRAM_BOT_TOKEN ||
+  process.env.BOT_TOKEN;
 
 const MONGO_URI =
-  process.env.MONGODB_URI || process.env.MONGO_URI;
+  process.env.MONGODB_URI ||
+  process.env.MONGO_URI;
 
 const MONGO_DB_NAME =
   process.env.MONGODB_DB_NAME ||
@@ -49,12 +52,16 @@ const RESOLVE_LIMIT_MINUTES = Number(
 // ======================================================
 
 if (!BOT_TOKEN) {
-  console.error("❌ TELEGRAM_BOT_TOKEN belum diisi");
+  console.error(
+    "❌ TELEGRAM_BOT_TOKEN belum diisi"
+  );
   process.exit(1);
 }
 
 if (!MONGO_URI) {
-  console.error("❌ MONGODB_URI belum diisi");
+  console.error(
+    "❌ MONGODB_URI belum diisi"
+  );
   process.exit(1);
 }
 
@@ -83,17 +90,29 @@ const APP_KEYWORDS = [
   {
     code: "MIT",
     name: "MyTech",
-    keywords: ["mit", "mytech", "my tech"],
+    keywords: [
+      "mit",
+      "mytech",
+      "my tech",
+    ],
   },
   {
     code: "MIS",
     name: "MyStaff",
-    keywords: ["mis", "mystaff", "my staff"],
+    keywords: [
+      "mis",
+      "mystaff",
+      "my staff",
+    ],
   },
   {
     code: "IDMT",
     name: "Identify Management",
-    keywords: ["idmt", "identify management", "idm"],
+    keywords: [
+      "idmt",
+      "identify management",
+      "idm",
+    ],
   },
   {
     code: "NAD",
@@ -207,6 +226,36 @@ const ticketSchema = new mongoose.Schema(
       index: true,
     },
 
+    app: {
+      type: String,
+      index: true,
+    },
+
+    appName: String,
+
+    symptom: String,
+    aiCategory: String,
+    aiTags: [String],
+    severity: String,
+
+    rawText: String,
+
+    reporterName: String,
+    reporterUsername: String,
+
+    groupName: String,
+
+    groupId: {
+      type: String,
+      index: true,
+    },
+
+    groupType: String,
+
+    solverInitial: String,
+    solverName: String,
+    solverTelegram: String,
+
     status: {
       type: String,
       enum: [
@@ -219,62 +268,18 @@ const ticketSchema = new mongoose.Schema(
       index: true,
     },
 
-    app: {
-      type: String,
-      index: true,
-    },
-
-    appName: String,
-
-    groupName: String,
-
-    groupId: {
-      type: String,
-      index: true,
-    },
-
-    symptom: String,
-
-    aiCategory: String,
-
-    severity: String,
-
-    reporterName: String,
-
-    reporterUsername: String,
-
-    solverInitial: String,
-
-    solverName: String,
-
-    solverTelegram: String,
-
-    rawText: String,
-
-    createdAt: {
-      type: Date,
-      default: Date.now,
-      index: true,
-    },
-
     pickupAt: Date,
-
     resolvedAt: Date,
 
     responseSLA: Number,
-
     resolutionSLA: Number,
-
     handlingMinutes: Number,
 
     responseSeconds: Number,
-
     resolutionSeconds: Number,
-
     handlingSeconds: Number,
 
     telegramMessageId: Number,
-
     replyToMessageId: Number,
 
     alertedPickup: {
@@ -415,8 +420,9 @@ function formatDurationLabel(
   if (
     seconds == null &&
     minutes == null
-  )
+  ) {
     return "-";
+  }
 
   const safeSeconds = Math.max(
     0,
@@ -526,7 +532,8 @@ async function syncToGoogleSheets(ticket) {
             symptom: ticket.symptom,
             category: ticket.aiCategory,
             severity: ticket.severity,
-            reporterName: ticket.reporterName,
+            reporterName:
+              ticket.reporterName,
             reporterUsername:
               ticket.reporterUsername,
             solverInitial:
@@ -589,11 +596,13 @@ async function processGroupMessage(
     !["group", "supergroup"].includes(
       chat.type
     )
-  )
+  ) {
     return;
+  }
 
-  if (!isWhitelistedGroup(chat.id))
+  if (!isWhitelistedGroup(chat.id)) {
     return;
+  }
 
   const rawText = (
     message.text ||
@@ -633,6 +642,7 @@ async function processGroupMessage(
 
         symptom: ai.symptom,
         aiCategory: ai.aiCategory,
+        aiTags: ai.aiTags,
         severity: ai.severity,
 
         rawText,
@@ -653,6 +663,7 @@ async function processGroupMessage(
           "Unknown Group",
 
         groupId: String(chat.id),
+        groupType: chat.type,
 
         status: "OPEN",
 
@@ -734,8 +745,9 @@ async function processGroupMessage(
     if (
       ticket.status ===
       "PICKED_UP"
-    )
+    ) {
       return;
+    }
 
     ticket.status = "PICKED_UP";
 
@@ -748,10 +760,9 @@ async function processGroupMessage(
         parsed.solverInitial
       ] || "Unknown Engineer";
 
-    ticket.solverTelegram =
-      String(
-        message.from?.username || ""
-      ).toLowerCase();
+    ticket.solverTelegram = String(
+      message.from?.username || ""
+    ).toLowerCase();
 
     ticket.pickupAt =
       actionTime;
@@ -769,6 +780,7 @@ async function processGroupMessage(
       );
 
     await ticket.save();
+
     await syncToGoogleSheets(ticket);
 
     console.log(
@@ -844,6 +856,7 @@ async function processGroupMessage(
       );
 
     await ticket.save();
+
     await syncToGoogleSheets(ticket);
 
     console.log(
@@ -853,7 +866,708 @@ async function processGroupMessage(
 }
 
 // ======================================================
-// COMMAND
+// REPORT
+// ======================================================
+
+async function getReportText(
+  period = "today"
+) {
+  const now = new Date();
+
+  const start = new Date(now);
+
+  if (period === "today") {
+    start.setHours(0, 0, 0, 0);
+  }
+
+  if (period === "weekly") {
+    const diff =
+      (start.getDay() + 6) % 7;
+
+    start.setDate(
+      start.getDate() - diff
+    );
+
+    start.setHours(0, 0, 0, 0);
+  }
+
+  if (period === "monthly") {
+    start.setDate(1);
+
+    start.setHours(0, 0, 0, 0);
+  }
+
+  const baseDateQuery = {
+    createdAt: {
+      $gte: start,
+      $lte: now,
+    },
+  };
+
+  const rows =
+    await Ticket.aggregate([
+      {
+        $match: baseDateQuery,
+      },
+      {
+        $group: {
+          _id: {
+            solverInitial:
+              "$solverInitial",
+            solverName:
+              "$solverName",
+          },
+
+          total: {
+            $sum: 1,
+          },
+
+          resolved: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: [
+                    "$status",
+                    "DONE",
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          avgResponse: {
+            $avg: "$responseSLA",
+          },
+
+          avgResponseSeconds: {
+            $avg:
+              "$responseSeconds",
+          },
+
+          avgResolution: {
+            $avg:
+              "$resolutionSLA",
+          },
+
+          avgResolutionSeconds: {
+            $avg:
+              "$resolutionSeconds",
+          },
+
+          tickets: {
+            $push: {
+              ticketId:
+                "$ticketId",
+              app: "$app",
+              appName:
+                "$appName",
+              groupName:
+                "$groupName",
+              status: "$status",
+            },
+          },
+        },
+      },
+      {
+        $sort: {
+          total: -1,
+        },
+      },
+    ]);
+
+  const open =
+    await Ticket.countDocuments({
+      ...baseDateQuery,
+      status: "OPEN",
+    });
+
+  const ongoing =
+    await Ticket.countDocuments({
+      ...baseDateQuery,
+      status: "PICKED_UP",
+    });
+
+  const done =
+    await Ticket.countDocuments({
+      ...baseDateQuery,
+      status: "DONE",
+    });
+
+  const totalTicket =
+    open + ongoing + done;
+
+  // ======================================================
+  // FIX REPORT KOSONG
+  // ======================================================
+
+  if (totalTicket === 0) {
+    return `
+📊 REPORT ${period.toUpperCase()}
+
+🗓 Generated : ${now.toLocaleString(
+      "id-ID"
+    )}
+
+📅 Periode :
+${start.toLocaleString(
+  "id-ID"
+)} s/d ${now.toLocaleString(
+      "id-ID"
+    )}
+
+━━━━━━━━━━━━━━━━━━
+
+📭 Belum ada tiket masuk pada periode ini.
+`;
+  }
+
+  let text = `
+📊 REPORT ${period.toUpperCase()}
+
+🗓 Generated : ${now.toLocaleString(
+    "id-ID"
+  )}
+
+📅 Periode :
+${start.toLocaleString(
+  "id-ID"
+)} s/d ${now.toLocaleString(
+    "id-ID"
+  )}
+
+📦 Total Summary
+   • OPEN     : ${open}
+   • ONGOING  : ${ongoing}
+   • DONE     : ${done}
+
+━━━━━━━━━━━━━━━━━━
+`;
+
+  rows.forEach((row, index) => {
+    const solverInitial =
+      row._id.solverInitial ||
+      "-";
+
+    const solverName =
+      row._id.solverName ||
+      "Unassigned";
+
+    const appSummary = {};
+
+    row.tickets.forEach((ticket) => {
+      const app =
+        ticket.app || "UNKNOWN";
+
+      const group =
+        ticket.groupName ||
+        "Unknown Group";
+
+      if (!appSummary[app]) {
+        appSummary[app] = {};
+      }
+
+      if (!appSummary[app][group]) {
+        appSummary[app][group] = 0;
+      }
+
+      appSummary[app][group]++;
+    });
+
+    text += `
+#${index + 1} - ${solverInitial}
+
+👨‍💻 Engineer
+${solverName}
+
+📦 Summary
+• Total Ticket : ${row.total}
+• Resolved     : ${row.resolved}
+
+📱 Active Apps
+
+${Object.entries(appSummary)
+  .map(([app, groups]) => {
+    return `
+• ${app}
+${Object.entries(groups)
+  .map(
+    ([group, total]) =>
+      `   - ${group} : ${total} tiket`
+  )
+  .join("\n")}
+`;
+  })
+  .join("\n")}
+
+⏱️ SLA Performance
+• Response : ${formatDurationLabel(
+      Math.round(
+        row.avgResponse || 0
+      ),
+      Math.round(
+        row.avgResponseSeconds ||
+          0
+      )
+    )}
+
+• Resolve  : ${formatDurationLabel(
+      Math.round(
+        row.avgResolution || 0
+      ),
+      Math.round(
+        row.avgResolutionSeconds ||
+          0
+      )
+    )}
+
+━━━━━━━━━━━━━━━━━━
+`;
+  });
+
+  return text;
+}
+
+// ======================================================
+// LEADERBOARD
+// ======================================================
+
+async function getLeaderboardText() {
+  const rows =
+    await Ticket.aggregate([
+      {
+        $match: {
+          status: "DONE",
+          solverInitial: {
+            $ne: null,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            solverInitial:
+              "$solverInitial",
+            solverName:
+              "$solverName",
+          },
+
+          total: {
+            $sum: 1,
+          },
+
+          avgResolve: {
+            $avg:
+              "$resolutionSeconds",
+          },
+        },
+      },
+      {
+        $sort: {
+          total: -1,
+        },
+      },
+      {
+        $limit: 10,
+      },
+    ]);
+
+  if (!rows.length) {
+    return "Belum ada data leaderboard.";
+  }
+
+  let text = `
+🏆 ENGINEER LEADERBOARD
+
+━━━━━━━━━━━━━━━━━━
+`;
+
+  rows.forEach((row, index) => {
+    text += `
+#${index + 1} ${
+      row._id.solverInitial
+    }
+
+👨‍💻 ${
+      row._id.solverName
+    }
+
+📦 Total Done
+${row.total} tiket
+
+⚡ Avg Resolve
+${formatDurationLabel(
+  0,
+  Math.round(
+    row.avgResolve || 0
+  )
+)}
+
+━━━━━━━━━━━━━━━━━━
+`;
+  });
+
+  return text;
+}
+
+// ======================================================
+// MONITORING
+// ======================================================
+
+async function getMonitoringText(type) {
+  let query = {};
+
+  const now = new Date();
+
+  // ============================================
+  // FILTER BY STATUS
+  // ============================================
+
+  if (type === "open") {
+    query = {
+      status: "OPEN",
+    };
+  }
+
+  if (type === "ongoing") {
+    query = {
+      status: "PICKED_UP",
+    };
+  }
+
+  if (type === "done") {
+    query = {
+      status: "DONE",
+    };
+  }
+
+  if (type === "late") {
+    query = {
+      status: {
+        $in: ["OPEN", "PICKED_UP"],
+      },
+    };
+  }
+
+  // ============================================
+  // ONLY TODAY DATA
+  // ============================================
+
+  const startToday = new Date();
+  startToday.setHours(0, 0, 0, 0);
+
+  query.createdAt = {
+    $gte: startToday,
+    $lte: now,
+  };
+
+  let rows = await Ticket.find(query)
+    .sort({
+      createdAt: -1,
+    })
+    .limit(100);
+
+  // ============================================
+  // FILTER LATE
+  // ============================================
+
+  if (type === "late") {
+    rows = rows.filter((item) => {
+      return (
+        diffMinutes(
+          item.createdAt,
+          now
+        ) > RESOLVE_LIMIT_MINUTES
+      );
+    });
+  }
+
+  // ============================================
+  // EMPTY
+  // ============================================
+
+  if (!rows.length) {
+    return `
+${
+  type === "open"
+    ? "🟠 OPEN TICKETS"
+    : type === "ongoing"
+    ? "🔵 ONGOING TICKETS"
+    : type === "done"
+    ? "✅ DONE TICKETS"
+    : "🚨 LATE TICKETS"
+}
+
+🗓 Generated : ${now.toLocaleString(
+      "id-ID"
+    )}
+
+Tidak ada tiket.
+`;
+  }
+
+  // ============================================
+  // GROUPING
+  // ============================================
+
+  const grouped = {};
+
+  rows.forEach((item) => {
+    const appKey = `${item.app} - ${
+      item.appName || "Unknown App"
+    }`;
+
+    const groupKey =
+      item.groupName || "Unknown Group";
+
+    if (!grouped[appKey]) {
+      grouped[appKey] = {};
+    }
+
+    if (!grouped[appKey][groupKey]) {
+      grouped[appKey][groupKey] = [];
+    }
+
+    grouped[appKey][groupKey].push(item);
+  });
+
+  // ============================================
+  // TITLE
+  // ============================================
+
+  const titleMap = {
+    open: "🟠 OPEN TICKETS",
+    ongoing: "🔵 ONGOING TICKETS",
+    done: "✅ DONE TICKETS",
+    late: "🚨 LATE TICKETS",
+  };
+
+  let text = [];
+
+  text.push(
+    titleMap[type] || "🎫 TICKETS"
+  );
+
+  text.push("");
+
+  text.push(
+    `🗓 Generated : ${now.toLocaleString(
+      "id-ID"
+    )}`
+  );
+
+  text.push(
+    `📦 Total Ticket : ${rows.length}`
+  );
+
+  text.push("");
+  text.push("━━━━━━━━━━━━━━━━━━");
+  text.push("");
+
+  // ============================================
+  // BUILD TEXT
+  // ============================================
+
+  Object.keys(grouped).forEach(
+    (appName) => {
+      const appGroups = grouped[appName];
+
+      const totalAppTickets =
+        Object.values(appGroups).reduce(
+          (sum, arr) => sum + arr.length,
+          0
+        );
+
+      text.push(`📱 ${appName}`);
+
+      text.push(
+        `📦 Total Ticket : ${totalAppTickets}`
+      );
+
+      text.push("");
+
+      Object.keys(appGroups).forEach(
+        (groupName) => {
+          const tickets =
+            appGroups[groupName];
+
+          text.push(
+            `📂 Group : ${groupName}`
+          );
+
+          text.push(
+            `🎫 Total Ticket Group : ${tickets.length}`
+          );
+
+          text.push("");
+
+          tickets.forEach(
+            (item, index) => {
+              text.push(
+                [
+                  `${
+                    index + 1
+                  }. ${item.ticketId}`,
+
+                  `   👨‍💻 ${
+                    item.solverInitial || "-"
+                  } - ${
+                    item.solverName ||
+                    "Unassigned"
+                  }`,
+
+                  `   📌 ${item.status}`,
+
+                  `   🏷 ${
+                    item.aiCategory ||
+                    "General"
+                  }`,
+
+                  `   ⏱ Response : ${formatDurationLabel(
+                    item.responseSLA,
+                    item.responseSeconds
+                  )}`,
+
+                  `   🛠 Resolve : ${formatDurationLabel(
+                    item.resolutionSLA,
+                    item.resolutionSeconds
+                  )}`,
+
+                  `   🕒 Created : ${new Date(
+                    item.createdAt
+                  ).toLocaleString("id-ID")}`,
+                ].join("\n")
+              );
+
+              text.push("");
+            }
+          );
+
+          text.push(
+            "━━━━━━━━━━━━━━━━━━"
+          );
+
+          text.push("");
+        }
+      );
+    }
+  );
+
+  return text.join("\n");
+}
+
+// ======================================================
+// USER STATS
+// ======================================================
+
+async function getUserStatsText(
+  telegramUsername
+) {
+  const username = String(
+    telegramUsername || ""
+  )
+    .replace("@", "")
+    .toLowerCase();
+
+  const engineerCode =
+    TELEGRAM_TO_ENGINEER[username];
+
+  if (!engineerCode) {
+    return `
+❌ Account Telegram belum terdaftar
+
+👤 Username :
+@${username}
+
+Hubungi admin untuk mapping engineer.
+`;
+  }
+
+  // ============================================
+  // ONLY MONTHLY
+  // ============================================
+
+  const startMonth = new Date();
+  startMonth.setDate(1);
+  startMonth.setHours(0, 0, 0, 0);
+
+  const rows = await Ticket.find({
+    solverInitial: engineerCode,
+    status: "DONE",
+    createdAt: {
+      $gte: startMonth,
+      $lte: new Date(),
+    },
+  });
+
+  const total = rows.length;
+
+  const avgSeconds = total
+    ? Math.round(
+        rows.reduce(
+          (sum, item) =>
+            sum +
+            (item.resolutionSeconds || 0),
+          0
+        ) / total
+      )
+    : 0;
+
+  const appSummary = {};
+
+  rows.forEach((item) => {
+    const key =
+      item.appName ||
+      item.app ||
+      "Unknown";
+
+    appSummary[key] =
+      (appSummary[key] || 0) + 1;
+  });
+
+  return `
+👨‍💻 ${
+    TEAM_MEMBERS[engineerCode]
+  }
+
+🆔 ${engineerCode.toUpperCase()}
+👤 @${username}
+
+━━━━━━━━━━━━━━━━━━
+
+📅 Periode
+${startMonth.toLocaleDateString(
+  "id-ID"
+)} - ${new Date().toLocaleDateString(
+    "id-ID"
+  )}
+
+📦 Total Done
+${total} tiket
+
+⚡ Avg Resolve
+${formatDurationLabel(
+  0,
+  avgSeconds
+)}
+
+📱 Apps Handled
+${
+  Object.entries(appSummary)
+    .map(
+      ([app, total]) =>
+        `• ${app} : ${total}`
+    )
+    .join("\n") || "-"
+}
+
+━━━━━━━━━━━━━━━━━━
+`;
+}
+
+// ======================================================
+// BOT COMMAND
 // ======================================================
 
 bot.start(async (ctx) => {
@@ -862,28 +1576,173 @@ bot.start(async (ctx) => {
 🚀 SLA TRACKER BOT
 
 Monitoring Ticket Telegram
+
+📌 Available Command
+
+/report
+/reportweekly
+/reportmonthly
+/leaderboard
+/open
+/ongoing
+/done
+/late
+/cekkrd
 `,
     mainMenu()
   );
 });
 
-bot.command("chatid", async (ctx) => {
-  await ctx.reply(
-    `CHAT ID: ${ctx.chat.id}`
-  );
-});
+// ======================================================
+// BUTTON MENU
+// ======================================================
+
+bot.hears(
+  "📊 Report",
+  async (ctx) =>
+    ctx.reply(
+      await getReportText("today")
+    )
+);
+
+bot.hears(
+  "🏆 Leaderboard",
+  async (ctx) =>
+    ctx.reply(
+      await getLeaderboardText()
+    )
+);
+
+bot.hears(
+  "👤 My Stats",
+  async (ctx) =>
+    ctx.reply(
+      await getUserStatsText(
+        ctx.from?.username || "unknown"
+      )
+    )
+);
+
+bot.hears(
+  "🟠 Open Tickets",
+  async (ctx) =>
+    ctx.reply(
+      await getMonitoringText("open")
+    )
+);
+
+bot.hears(
+  "🔵 Ongoing",
+  async (ctx) =>
+    ctx.reply(
+      await getMonitoringText(
+        "ongoing"
+      )
+    )
+);
+
+bot.hears(
+  "✅ Done Tickets",
+  async (ctx) =>
+    ctx.reply(
+      await getMonitoringText("done")
+    )
+);
+
+bot.hears(
+  "🚨 Late Tickets",
+  async (ctx) =>
+    ctx.reply(
+      await getMonitoringText("late")
+    )
+);
+
+// ======================================================
+// COMMAND
+// ======================================================
 
 bot.command(
   "report",
+  async (ctx) =>
+    ctx.reply(
+      await getReportText("today")
+    )
+);
+
+bot.command(
+  "reportweekly",
+  async (ctx) =>
+    ctx.reply(
+      await getReportText("weekly")
+    )
+);
+
+bot.command(
+  "reportmonthly",
+  async (ctx) =>
+    ctx.reply(
+      await getReportText("monthly")
+    )
+);
+
+bot.command(
+  "leaderboard",
+  async (ctx) =>
+    ctx.reply(
+      await getLeaderboardText()
+    )
+);
+
+bot.command(
+  "open",
+  async (ctx) =>
+    ctx.reply(
+      await getMonitoringText("open")
+    )
+);
+
+bot.command(
+  "ongoing",
+  async (ctx) =>
+    ctx.reply(
+      await getMonitoringText(
+        "ongoing"
+      )
+    )
+);
+
+bot.command(
+  "done",
+  async (ctx) =>
+    ctx.reply(
+      await getMonitoringText("done")
+    )
+);
+
+bot.command(
+  "late",
+  async (ctx) =>
+    ctx.reply(
+      await getMonitoringText("late")
+    )
+);
+
+bot.command(
+  "cekkrd",
+  async (ctx) =>
+    ctx.reply(
+      await getUserStatsText(
+        "krisnard45"
+      )
+    )
+);
+
+bot.command(
+  "chatid",
   async (ctx) => {
-    const total =
-      await Ticket.countDocuments();
-
-    await ctx.reply(`
-📊 REPORT
-
-📦 Total Ticket : ${total}
-`);
+    await ctx.reply(
+      `CHAT ID: ${ctx.chat.id}`
+    );
   }
 );
 
@@ -895,12 +1754,11 @@ bot.on(
   "message",
   async (ctx, next) => {
     try {
-      const text =
-        (
-          ctx.message?.text ||
-          ctx.message?.caption ||
-          ""
-        ).trim();
+      const text = (
+        ctx.message?.text ||
+        ctx.message?.caption ||
+        ""
+      ).trim();
 
       if (
         ctx.message?.chat?.type ===
@@ -910,8 +1768,7 @@ bot.on(
       ) {
         console.log(
           `📥 ${ctx.message.chat.title} | ${
-            ctx.message.from
-              ?.username ||
+            ctx.message.from?.username ||
             "unknown"
           } | ${text}`
         );
@@ -936,30 +1793,31 @@ bot.on(
 // ======================================================
 
 setInterval(async () => {
-  const now = new Date();
+  try {
+    const now = new Date();
 
-  const openTickets =
-    await Ticket.find({
-      status: "OPEN",
-      alertedPickup: false,
-    });
+    const openTickets =
+      await Ticket.find({
+        status: "OPEN",
+        alertedPickup: false,
+      });
 
-  for (const ticket of openTickets) {
-    const minutes =
-      diffMinutes(
-        ticket.createdAt,
-        now
-      );
+    for (const ticket of openTickets) {
+      const minutes =
+        diffMinutes(
+          ticket.createdAt,
+          now
+        );
 
-    if (
-      minutes >
-        PICKUP_LIMIT_MINUTES &&
-      SUPERVISOR_GROUP_IDS.length
-    ) {
-      for (const chatId of SUPERVISOR_GROUP_IDS) {
-        await bot.telegram.sendMessage(
-          chatId,
-          `
+      if (
+        minutes >
+          PICKUP_LIMIT_MINUTES &&
+        SUPERVISOR_GROUP_IDS.length
+      ) {
+        for (const chatId of SUPERVISOR_GROUP_IDS) {
+          await bot.telegram.sendMessage(
+            chatId,
+            `
 🚨 SLA PICKUP ALERT
 
 🎫 ${ticket.ticketId}
@@ -972,13 +1830,19 @@ setInterval(async () => {
 
 ⏱ ${minutes} menit
 `
-        );
+          );
+        }
+
+        ticket.alertedPickup = true;
+
+        await ticket.save();
       }
-
-      ticket.alertedPickup = true;
-
-      await ticket.save();
     }
+  } catch (error) {
+    console.error(
+      "❌ SLA ALERT ERROR:",
+      error.message
+    );
   }
 }, 60 * 1000);
 
@@ -988,33 +1852,59 @@ setInterval(async () => {
 
 async function start() {
   try {
-    console.log("🚀 Starting Bot...");
+    console.log(
+      "🚀 Starting Bot..."
+    );
 
-    await mongoose.connect(MONGO_URI, {
-      dbName: MONGO_DB_NAME,
-      serverSelectionTimeoutMS: 10000,
-    });
+    await mongoose.connect(
+      MONGO_URI,
+      {
+        dbName: MONGO_DB_NAME,
+        serverSelectionTimeoutMS: 10000,
+      }
+    );
 
-    console.log("✅ MongoDB Connected");
-
-    console.log("🧹 Removing old webhook...");
+    console.log(
+      "✅ MongoDB Connected"
+    );
 
     await bot.telegram.deleteWebhook();
 
-    console.log("✅ Webhook removed");
+    console.log(
+      "✅ Webhook Removed"
+    );
 
-    const me = await bot.telegram.getMe();
+    const me =
+      await bot.telegram.getMe();
 
-    console.log(`🤖 Bot Found : @${me.username}`);
+    console.log(
+      `🤖 Bot Active: @${me.username}`
+    );
 
     await bot.launch({
       dropPendingUpdates: true,
     });
 
-    console.log("🚀 SLA Tracker Running");
+    console.log(
+      "🚀 SLA Tracker Running"
+    );
   } catch (error) {
-    console.error("❌ Startup Error:");
+    console.error(
+      "❌ Startup Error:"
+    );
+
     console.error(error);
+
     process.exit(1);
   }
 }
+
+start();
+
+process.once("SIGINT", () =>
+  bot.stop("SIGINT")
+);
+
+process.once("SIGTERM", () =>
+  bot.stop("SIGTERM")
+);
