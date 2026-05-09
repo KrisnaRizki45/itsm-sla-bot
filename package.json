@@ -1,0 +1,21 @@
+{
+  "name": "itsm-mso3",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "build": "npm run build --prefix client",
+    "start": "npm run start --prefix server",
+    "bot": "node bot.js"
+  },
+  "dependencies": {
+    "axios": "^1.16.0",
+    "dotenv": "^17.2.3",
+    "googleapis": "^171.4.0",
+    "mongoose": "^8.17.1",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
