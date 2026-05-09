@@ -207,36 +207,6 @@ const ticketSchema = new mongoose.Schema(
       index: true,
     },
 
-    app: {
-      type: String,
-      index: true,
-    },
-
-    appName: String,
-
-    symptom: String,
-    aiCategory: String,
-    aiTags: [String],
-    severity: String,
-
-    rawText: String,
-
-    reporterName: String,
-    reporterUsername: String,
-
-    groupName: String,
-
-    groupId: {
-      type: String,
-      index: true,
-    },
-
-    groupType: String,
-
-    solverInitial: String,
-    solverName: String,
-    solverTelegram: String,
-
     status: {
       type: String,
       enum: [
@@ -249,6 +219,38 @@ const ticketSchema = new mongoose.Schema(
       index: true,
     },
 
+    app: {
+      type: String,
+      index: true,
+    },
+
+    appName: String,
+
+    groupName: String,
+
+    groupId: {
+      type: String,
+      index: true,
+    },
+
+    symptom: String,
+
+    aiCategory: String,
+
+    severity: String,
+
+    reporterName: String,
+
+    reporterUsername: String,
+
+    solverInitial: String,
+
+    solverName: String,
+
+    solverTelegram: String,
+
+    rawText: String,
+
     createdAt: {
       type: Date,
       default: Date.now,
@@ -256,17 +258,23 @@ const ticketSchema = new mongoose.Schema(
     },
 
     pickupAt: Date,
+
     resolvedAt: Date,
 
     responseSLA: Number,
+
     resolutionSLA: Number,
+
     handlingMinutes: Number,
 
     responseSeconds: Number,
+
     resolutionSeconds: Number,
+
     handlingSeconds: Number,
 
     telegramMessageId: Number,
+
     replyToMessageId: Number,
 
     alertedPickup: {
@@ -495,14 +503,12 @@ function classifyMessage(text = "") {
   };
 }
 
-
 // ======================================================
 // GOOGLE SHEETS SYNC
 // ======================================================
 
 async function syncToGoogleSheets(ticket) {
   try {
-
     if (!process.env.GOOGLE_SCRIPT_URL)
       return;
 
@@ -549,17 +555,13 @@ async function syncToGoogleSheets(ticket) {
     console.log(
       `📊 Sheets Sync ${ticket.ticketId}`
     );
-
   } catch (error) {
-
     console.error(
       "❌ Sheets Sync Error:",
       error.message
     );
-
   }
 }
-
 
 // ======================================================
 // MENU
@@ -631,7 +633,6 @@ async function processGroupMessage(
 
         symptom: ai.symptom,
         aiCategory: ai.aiCategory,
-        aiTags: ai.aiTags,
         severity: ai.severity,
 
         rawText,
@@ -652,7 +653,6 @@ async function processGroupMessage(
           "Unknown Group",
 
         groupId: String(chat.id),
-        groupType: chat.type,
 
         status: "OPEN",
 
@@ -749,8 +749,9 @@ async function processGroupMessage(
       ] || "Unknown Engineer";
 
     ticket.solverTelegram =
-    String(message.from?.username || "")
-    .toLowerCase();
+      String(
+        message.from?.username || ""
+      ).toLowerCase();
 
     ticket.pickupAt =
       actionTime;
@@ -852,529 +853,7 @@ async function processGroupMessage(
 }
 
 // ======================================================
-// REPORT
-// ======================================================
-
-async function getReportText(
-  period = "today"
-) {
-  const now = new Date();
-
-  const start = new Date(now);
-
-  if (period === "weekly") {
-    const diff =
-      (start.getDay() + 6) % 7;
-
-    start.setDate(
-      start.getDate() - diff
-    );
-  } else if (
-    period === "monthly"
-  ) {
-    start.setDate(1);
-  }
-
-  start.setHours(0, 0, 0, 0);
-
-  const rows =
-    await Ticket.aggregate([
-      {
-        $match: {
-          createdAt: {
-            $gte: start,
-            $lte: now,
-          },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            solverInitial:
-              "$solverInitial",
-            solverName:
-              "$solverName",
-          },
-
-          total: {
-            $sum: 1,
-          },
-
-          resolved: {
-            $sum: {
-              $cond: [
-                {
-                  $eq: [
-                    "$status",
-                    "DONE",
-                  ],
-                },
-                1,
-                0,
-              ],
-            },
-          },
-
-          avgResponse: {
-            $avg: "$responseSLA",
-          },
-
-          avgResponseSeconds: {
-            $avg:
-              "$responseSeconds",
-          },
-
-          avgResolution: {
-            $avg:
-              "$resolutionSLA",
-          },
-
-          avgResolutionSeconds: {
-            $avg:
-              "$resolutionSeconds",
-          },
-
-          tickets: {
-            $push: {
-              ticketId:
-                "$ticketId",
-              app: "$app",
-              appName:
-                "$appName",
-              groupName:
-                "$groupName",
-              status:
-                "$status",
-            },
-          },
-        },
-      },
-      {
-        $sort: {
-          total: -1,
-        },
-      },
-    ]);
-
-  const open =
-    await Ticket.countDocuments({
-      status: "OPEN",
-    });
-
-  const ongoing =
-    await Ticket.countDocuments({
-      status: "PICKED_UP",
-    });
-
-  const done =
-    await Ticket.countDocuments({
-      status: "DONE",
-    });
-
-  let text = `
-📊 REPORT ${period.toUpperCase()}
-
-🗓 Generated : ${now.toLocaleString(
-    "id-ID"
-  )}
-
-📦 Total Summary
-   • OPEN     : ${open}
-   • ONGOING  : ${ongoing}
-   • DONE     : ${done}
-
-━━━━━━━━━━━━━━━━━━
-`;
-
-  rows.forEach((row, index) => {
-    const solverInitial =
-      row._id.solverInitial ||
-      "-";
-
-    const solverName =
-      row._id.solverName ||
-      "Unassigned";
-
-    const appSummary = {};
-
-row.tickets.forEach((ticket) => {
-  const app =
-    ticket.app || "UNKNOWN";
-
-  const group =
-    ticket.groupName || "Unknown Group";
-
-  if (!appSummary[app]) {
-    appSummary[app] = {};
-  }
-
-  if (!appSummary[app][group]) {
-    appSummary[app][group] = 0;
-  }
-
-  appSummary[app][group]++;
-});
-
-    text += `
-#${index + 1} ${solverInitial}
-
-👨‍💻 Engineer
-${solverName}
-
-📦 Summary
-• Total Ticket : ${row.total}
-• Resolved     : ${row.resolved}
-
-📱 Active Apps
-${Object.entries(appSummary)
-  .map(([app, groups]) => {
-    return `
-• ${app}
-${Object.entries(groups)
-  .map(
-    ([group, total]) =>
-      `   - ${group} : ${total} tiket`
-  )
-  .join("\n")}
-`;
-  })
-  .join("\n")}
-
-⏱ SLA Performance
-• Response : ${formatDurationLabel(
-      Math.round(
-        row.avgResponse || 0
-      ),
-      Math.round(
-        row.avgResponseSeconds ||
-          0
-      )
-    )}
-
-• Resolve  : ${formatDurationLabel(
-      Math.round(
-        row.avgResolution || 0
-      ),
-      Math.round(
-        row.avgResolutionSeconds ||
-          0
-      )
-    )}
-
-━━━━━━━━━━━━━━━━━━
-`;
-  });
-
-  return text;
-}
-
-// ======================================================
-// LEADERBOARD
-// ======================================================
-
-async function getLeaderboardText() {
-  const rows =
-    await Ticket.aggregate([
-      {
-        $match: {
-          status: "DONE",
-          solverInitial: {
-            $ne: null,
-          },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            solverInitial:
-              "$solverInitial",
-            solverName:
-              "$solverName",
-          },
-
-          total: {
-            $sum: 1,
-          },
-
-          avgResolve: {
-            $avg:
-              "$resolutionSeconds",
-          },
-        },
-      },
-      {
-        $sort: {
-          total: -1,
-        },
-      },
-      {
-        $limit: 10,
-      },
-    ]);
-
-  if (!rows.length) {
-    return "Belum ada data leaderboard.";
-  }
-
-  let text = `
-🏆 ENGINEER LEADERBOARD
-
-━━━━━━━━━━━━━━━━━━
-`;
-
-  rows.forEach((row, index) => {
-    text += `
-#${index + 1} ${
-      row._id.solverInitial
-    }
-
-👨‍💻 ${
-      row._id.solverName
-    }
-
-📦 Total Done
-${row.total} tiket
-
-⚡ Avg Resolve
-${formatDurationLabel(
-  0,
-  Math.round(
-    row.avgResolve || 0
-  )
-)}
-
-━━━━━━━━━━━━━━━━━━
-`;
-  });
-
-  return text;
-}
-
-// ======================================================
-// MONITORING
-// ======================================================
-
-async function getMonitoringText(type) {
-  let query = {};
-
-  if (type === "open") {
-    query = { status: "OPEN" };
-  }
-
-  if (type === "ongoing") {
-    query = { status: "PICKED_UP" };
-  }
-
-  if (type === "done") {
-    query = { status: "DONE" };
-  }
-
-  if (type === "late") {
-    query = {
-      status: {
-        $in: ["OPEN", "PICKED_UP"],
-      },
-    };
-  }
-
-  let rows = await Ticket.find(query)
-    .sort({
-      createdAt: -1,
-    })
-    .limit(100);
-
-  // =========================
-  // FILTER LATE
-  // =========================
-  if (type === "late") {
-    const now = new Date();
-
-    rows = rows.filter((item) => {
-      return diffMinutes(item.createdAt, now) > RESOLVE_LIMIT_MINUTES;
-    });
-  }
-
-  if (!rows.length) {
-    return "Tidak ada tiket.";
-  }
-
-  // =========================
-  // GROUPING PER APP + GROUP
-  // =========================
-  const grouped = {};
-
-  rows.forEach((item) => {
-    const appKey = `${item.app} - ${item.appName || "Unknown App"}`;
-    const groupKey = item.groupName || "Unknown Group";
-
-    if (!grouped[appKey]) {
-      grouped[appKey] = {};
-    }
-
-    if (!grouped[appKey][groupKey]) {
-      grouped[appKey][groupKey] = [];
-    }
-
-    grouped[appKey][groupKey].push(item);
-  });
-
-  // =========================
-  // HEADER
-  // =========================
-  let text = [];
-
-  const titleMap = {
-    open: "🟠 OPEN TICKETS",
-    ongoing: "🔵 ONGOING TICKETS",
-    done: "✅ DONE TICKETS",
-    late: "🚨 LATE TICKETS",
-  };
-
-  text.push(titleMap[type] || "🎫 TICKETS");
-  text.push("");
-  text.push(`🗓 Generated : ${new Date().toLocaleString("id-ID")}`);
-  text.push(`📦 Total Ticket : ${rows.length}`);
-  text.push("");
-  text.push("━━━━━━━━━━━━━━━━━━");
-  text.push("");
-
-  // =========================
-  // DETAIL
-  // =========================
-  Object.keys(grouped).forEach((appName) => {
-    const appGroups = grouped[appName];
-
-    const totalAppTickets = Object.values(appGroups)
-      .reduce((sum, arr) => sum + arr.length, 0);
-
-    text.push(`📱 ${appName}`);
-    text.push(`📦 Total Ticket : ${totalAppTickets}`);
-    text.push("");
-
-    Object.keys(appGroups).forEach((groupName) => {
-      const tickets = appGroups[groupName];
-
-      text.push(`📂 Group : ${groupName}`);
-      text.push(`🎫 Total Ticket Group : ${tickets.length}`);
-      text.push("");
-
-      tickets.forEach((item, index) => {
-        text.push(
-          [
-            `${index + 1}. ${item.ticketId}`,
-            `   👨‍💻 ${
-              item.solverInitial || "-"
-            } - ${item.solverName || "Unassigned"}`,
-            `   📌 ${item.status}`,
-            `   🏷 ${item.aiCategory || "General"}`,
-            `   ⏱ Response : ${formatDurationLabel(
-              item.responseSLA,
-              item.responseSeconds
-            )}`,
-            `   🛠 Resolve : ${formatDurationLabel(
-              item.resolutionSLA,
-              item.resolutionSeconds
-            )}`,
-          ].join("\n")
-        );
-
-        text.push("");
-      });
-
-      text.push("━━━━━━━━━━━━━━━━━━");
-      text.push("");
-    });
-  });
-
-  return text.join("\n");
-}
-
-// ======================================================
-// USER STATS
-// ======================================================
-
-async function getUserStatsText(
-  telegramUsername
-) {
-  const username = String(
-    telegramUsername || ""
-  )
-    .replace("@", "")
-    .toLowerCase();
-
-  const engineerCode =
-    TELEGRAM_TO_ENGINEER[username];
-
-  if (!engineerCode) {
-    return `
-❌ Account Telegram belum terdaftar
-
-👤 Username :
-@${username}
-
-Hubungi admin untuk mapping engineer.
-`;
-  }
-
-  const rows = await Ticket.find({
-    solverInitial: engineerCode,
-    status: "DONE",
-  });
-
-  const total = rows.length;
-
-  const avgSeconds = total
-    ? Math.round(
-        rows.reduce(
-          (sum, item) =>
-            sum +
-            (item.resolutionSeconds || 0),
-          0
-        ) / total
-      )
-    : 0;
-
-  const appSummary = {};
-
-  rows.forEach((item) => {
-    const key =
-      item.appName || item.app || "Unknown";
-
-    appSummary[key] =
-      (appSummary[key] || 0) + 1;
-  });
-
-  return `
-👨‍💻 ${TEAM_MEMBERS[engineerCode]}
-
-🆔 ${engineerCode.toUpperCase()}
-👤 @${username}
-
-━━━━━━━━━━━━━━━━━━
-
-📦 Total Done
-${total} tiket
-
-⚡ Avg Resolve
-${formatDurationLabel(
-  0,
-  avgSeconds
-)}
-
-📱 Apps Handled
-${Object.entries(appSummary)
-  .map(
-    ([app, total]) =>
-      `• ${app} : ${total}`
-  )
-  .join("\n") || "-"}
-
-━━━━━━━━━━━━━━━━━━
-`;
-}
-
-// ======================================================
-// BOT COMMAND
+// COMMAND
 // ======================================================
 
 bot.start(async (ctx) => {
@@ -1383,158 +862,29 @@ bot.start(async (ctx) => {
 🚀 SLA TRACKER BOT
 
 Monitoring Ticket Telegram
-
-📌 Available Command
-
-/report
-/reportweekly
-/reportmonthly
-/leaderboard
-/open
-/ongoing
-/done
-/late
-/cekkrd
 `,
     mainMenu()
   );
 });
 
-bot.hears(
-  "📊 Report",
-  async (ctx) =>
-    ctx.reply(
-      await getReportText("today")
-    )
-);
-
-bot.hears(
-  "🏆 Leaderboard",
-  async (ctx) =>
-    ctx.reply(
-      await getLeaderboardText()
-    )
-);
-
-bot.hears(
-  "👤 My Stats",
-  async (ctx) =>
-    ctx.reply(
-      await getUserStatsText(
-        ctx.from?.username ||
-          "unknown"
-      )
-    )
-);
-
-bot.hears(
-  "🟠 Open Tickets",
-  async (ctx) =>
-    ctx.reply(
-      await getMonitoringText(
-        "open"
-      )
-    )
-);
-
-bot.hears(
-  "🔵 Ongoing",
-  async (ctx) =>
-    ctx.reply(
-      await getMonitoringText(
-        "ongoing"
-      )
-    )
-);
-
-bot.hears(
-  "✅ Done Tickets",
-  async (ctx) =>
-    ctx.reply(
-      await getMonitoringText(
-        "done"
-      )
-    )
-);
-
-// ======================================================
-// COMMAND
-// ======================================================
+bot.command("chatid", async (ctx) => {
+  await ctx.reply(
+    `CHAT ID: ${ctx.chat.id}`
+  );
+});
 
 bot.command(
   "report",
-  async (ctx) =>
-    ctx.reply(
-      await getReportText("today")
-    )
-);
+  async (ctx) => {
+    const total =
+      await Ticket.countDocuments();
 
-bot.command(
-  "reportweekly",
-  async (ctx) =>
-    ctx.reply(
-      await getReportText(
-        "weekly"
-      )
-    )
-);
+    await ctx.reply(`
+📊 REPORT
 
-bot.command(
-  "reportmonthly",
-  async (ctx) =>
-    ctx.reply(
-      await getReportText(
-        "monthly"
-      )
-    )
-);
-
-bot.command(
-  "leaderboard",
-  async (ctx) =>
-    ctx.reply(
-      await getLeaderboardText()
-    )
-);
-
-bot.command(
-  "open",
-  async (ctx) =>
-    ctx.reply(
-      await getMonitoringText(
-        "open"
-      )
-    )
-);
-
-bot.command(
-  "ongoing",
-  async (ctx) =>
-    ctx.reply(
-      await getMonitoringText(
-        "ongoing"
-      )
-    )
-);
-
-bot.command(
-  "done",
-  async (ctx) =>
-    ctx.reply(
-      await getMonitoringText(
-        "done"
-      )
-    )
-);
-
-bot.command(
-  "cekkrd",
-  async (ctx) =>
-    ctx.reply(
-      await getUserStatsText(
-        "krd"
-      )
-    )
+📦 Total Ticket : ${total}
+`);
+  }
 );
 
 // ======================================================
@@ -1638,50 +988,28 @@ setInterval(async () => {
 
 async function start() {
   try {
-    await mongoose.connect(
-      MONGO_URI,
-      {
-        dbName: MONGO_DB_NAME,
-        serverSelectionTimeoutMS: 10000,
-      }
-    );
+    console.log("🚀 Starting Bot...");
 
-    console.log(
-      "✅ MongoDB Connected"
-    );
+    await mongoose.connect(MONGO_URI, {
+      dbName: MONGO_DB_NAME,
+      serverSelectionTimeoutMS: 10000,
+    });
 
-    const me =
-      await bot.telegram.getMe();
+    console.log("✅ MongoDB Connected");
+
+    console.log("🔍 Checking Telegram bot...");
+
+    const me = await bot.telegram.getMe();
+
+    console.log("✅ Telegram Connected");
 
     await bot.launch();
 
-    console.log(
-      `🤖 Bot Active : @${me.username}`
-    );
-
-    console.log(
-      "🚀 SLA Tracker Running"
-    );
+    console.log(`🤖 Bot Active : @${me.username}`);
+    console.log("🚀 SLA Tracker Running");
   } catch (error) {
-    console.error(
-      "❌ Startup Error:",
-      error.message
-    );
-
+    console.error("❌ Startup Error:");
+    console.error(error);
     process.exit(1);
   }
 }
-
-start();
-
-process.once("SIGINT", () =>
-  bot.stop("SIGINT")
-);
-
-process.once("SIGTERM", () =>
-  bot.stop("SIGTERM")
-);
-
-bot.command("chatid", async (ctx) => {
-  await ctx.reply(`CHAT ID: ${ctx.chat.id}`);
-});
