@@ -1681,3 +1681,7 @@ process.once("SIGINT", () =>
 process.once("SIGTERM", () =>
   bot.stop("SIGTERM")
 );
+
+bot.command("chatid", async (ctx) => {
+  await ctx.reply(`CHAT ID: ${ctx.chat.id}`);
+});
