@@ -212,7 +212,7 @@ const resolveRegex =
   /\b(silahkan cek kembali|silakan cek kembali|done|selesai)\b/i;
 
 const solverRegex =
-  /\b([A-Z]{2,5})\s*-\s*([a-z0-9]{2,8})\b/i;
+  /-\s*([a-z0-9]{2,8})\b/i;
 
 // ======================================================
 // MONGOOSE SCHEMA
@@ -476,15 +476,15 @@ function classifyMessage(text = "") {
 
   if (pickup) {
     const solver =
-      normalized.match(solverRegex);
+  normalized.match(solverRegex);
 
-    return {
-      type: "pickup",
-      app: detectApp(normalized),
-      solverInitial:
-        solver?.[2]?.toLowerCase() ||
-        null,
-    };
+return {
+  type: "pickup",
+  app: detectApp(normalized),
+  solverInitial:
+    solver?.[1]?.toLowerCase() ||
+    null,
+};
   }
 
   const resolve =
@@ -498,7 +498,7 @@ function classifyMessage(text = "") {
       type: "resolve",
       app: detectApp(normalized),
       solverInitial:
-        solver?.[2]?.toLowerCase() ||
+        solver?.[1]?.toLowerCase() ||
         null,
     };
   }
